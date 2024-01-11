@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -730,6 +731,34 @@ func (m *minioAPI) ReadCSVLines(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, result)
 }
 
+func (m *minioAPI) GetDownloadLink(ctx *gin.Context) {
+
+	source, err := common.SystemDatasourceOSS(ctx.Request.Context(), nil, m.client)
+	if err != nil {
+		klog.Errorf("failed to get datasource %s", err)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	bucket := ctx.GetHeader(namespaceHeader)
+	bucketPath := ctx.Query(bucketPathQuery)
+	fileName := ctx.Query("fileName")
+	objectName := fmt.Sprintf("%s/%s", bucketPath, fileName)
+
+	u, err := source.Core.PresignedGetObject(ctx.Request.Context(), bucket, objectName, time.Hour*24*7, url.Values{})
+	if err != nil {
+		klog.Errorf("failed to get generate download link %s", err)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"url": u.String()})
+}
+
 func RegisterMinIOAPI(group *gin.RouterGroup, conf gqlconfig.ServerConfig) {
 	c, err := client.GetClient(nil)
 	if err != nil {
@@ -749,6 +778,7 @@ func RegisterMinIOAPI(group *gin.RouterGroup, conf gqlconfig.ServerConfig) {
 		group.DELETE("/model/files", auth.AuthInterceptor(conf.EnableOIDC, oidc.Verifier, "delete", "models"), api.DeleteFiles)
 		group.GET("/model/files/stat", auth.AuthInterceptor(conf.EnableOIDC, oidc.Verifier, "get", "models"), api.StatFile)
 		group.GET("/model/files/download", auth.AuthInterceptor(conf.EnableOIDC, oidc.Verifier, "get", "models"), api.Download)
+		group.GET("/model/files/downloadlink", auth.AuthInterceptor(conf.EnableOIDC, oidc.Verifier, "get", "models"), api.GetDownloadLink)
 	}
 
 	{
@@ -762,5 +792,6 @@ func RegisterMinIOAPI(group *gin.RouterGroup, conf gqlconfig.ServerConfig) {
 		group.GET("/versioneddataset/files/stat", auth.AuthInterceptor(conf.EnableOIDC, oidc.Verifier, "get", "versioneddatasets"), api.StatFile)
 		group.GET("/versioneddataset/files/download", auth.AuthInterceptor(conf.EnableOIDC, oidc.Verifier, "get", "versioneddatasets"), api.Download)
 		group.GET("/versioneddataset/files/csv", auth.AuthInterceptor(conf.EnableOIDC, oidc.Verifier, "get", "versioneddatasets"), api.ReadCSVLines)
+		group.GET("/versioneddataset/files/downloadlink", auth.AuthInterceptor(conf.EnableOIDC, oidc.Verifier, "get", "versioneddatasets"), api.GetDownloadLink)
 	}
 }
