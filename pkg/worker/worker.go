@@ -341,7 +341,15 @@ func (podWorker *PodWorker) BeforeStart(ctx context.Context) error {
 				}
 			}
 		case Update:
-			// Skip update when found
+			embedder = podWorker.Worker().BuildEmbedder()
+			if err = controllerutil.SetControllerReference(podWorker.Worker(), embedder, podWorker.c.Scheme()); err != nil {
+				return err
+			}
+			if err = podWorker.c.Update(ctx, embedder); err != nil {
+				if !k8serrors.IsAlreadyExists(err) {
+					return err
+				}
+			}
 		case Panic:
 			return err
 		}
@@ -364,7 +372,15 @@ func (podWorker *PodWorker) BeforeStart(ctx context.Context) error {
 				}
 			}
 		case Update:
-			// Skip update when found
+			llm = podWorker.Worker().BuildLLM()
+			if err = controllerutil.SetControllerReference(podWorker.Worker(), llm, podWorker.c.Scheme()); err != nil {
+				return err
+			}
+			if err = podWorker.c.Update(ctx, llm); err != nil {
+				if !k8serrors.IsAlreadyExists(err) {
+					return err
+				}
+			}
 		case Panic:
 			return err
 		}
