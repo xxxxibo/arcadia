@@ -19,7 +19,6 @@ package worker
 import (
 	"context"
 	"fmt"
-
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -30,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
+	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -341,7 +341,11 @@ func (podWorker *PodWorker) BeforeStart(ctx context.Context) error {
 				}
 			}
 		case Update:
-			// Skip update when found
+			embedder1 := podWorker.Worker().BuildEmbedder()
+			if !reflect.DeepEqual(embedder.Spec, embedder1.Spec) {
+				embedder.Spec = embedder1.Spec
+				return podWorker.c.Update(ctx, embedder)
+			}
 		case Panic:
 			return err
 		}
@@ -364,7 +368,11 @@ func (podWorker *PodWorker) BeforeStart(ctx context.Context) error {
 				}
 			}
 		case Update:
-			// Skip update when found
+			llm1 := podWorker.Worker().BuildLLM()
+			if !reflect.DeepEqual(llm.Spec, llm1.Spec) {
+				llm.Spec = llm1.Spec
+				return podWorker.c.Update(ctx, llm)
+			}
 		case Panic:
 			return err
 		}
